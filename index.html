@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 아이폰 "홈 화면에 추가" 했을 때 주소창 없이 앱처럼 열리게 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="할일">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>할일 리마인더</title>
+</head>
+<body>
+
+  <style>
+    /* =====================================================
+       디자인: 아이폰 기본 앱(미리 알림·설정·시계) 느낌
+       - 회색 바탕 위에 둥근 흰 카드 목록 (inset grouped)
+       - 아이폰 시스템 글꼴, 시스템 색 (파랑·빨강·주황·초록)
+       ===================================================== */
+    /* 레이아웃: 큰 제목 + 둥근 카드 목록 + 아래 탭 막대 */
+    :root {
+      --bg: #f2f2f7;               /* 바탕 (설정 앱 회색) */
+      --card: #ffffff;             /* 카드 */
+      --text: #000000;             /* 기본 글자 */
+      --sub: #8a8a8e;              /* 흐린 글자 */
+      --line: #c6c6c8;             /* 구분선 */
+      --fill: rgba(118, 118, 128, 0.12);   /* 회색 버튼·입력칸 바탕 */
+      --accent: #007aff;           /* 시스템 파랑 */
+      --accent-soft: rgba(0, 122, 255, 0.1);
+      --on-accent: #ffffff;
+      --warn: #ff9500;             /* 시스템 주황 */
+      --warn-soft: rgba(255, 149, 0, 0.14);
+      --warn-text: #c93400;
+      --danger: #ff3b30;           /* 시스템 빨강 */
+      --danger-soft: rgba(255, 59, 48, 0.12);
+      --ok: #34c759;               /* 시스템 초록 */
+      --ok-soft: rgba(52, 199, 89, 0.18);
+      --muted-icon: #c7c7cc;
+      --bar-bg: rgba(249, 249, 249, 0.92);
+      --toast-bg: rgba(30, 30, 30, 0.88);
+      --toast-text: #ffffff;
+      --overlay: rgba(0, 0, 0, 0.4);
+      --seg-thumb: #ffffff;        /* 세그먼트 선택된 칸 */
+      --dialog-bg: rgba(242, 242, 242, 0.97);
+
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+      --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+      --radius: 20px;              /* 카드·버튼 모서리 둥글기 */
+    }
+    /* 다크 모드 색 (아이폰 다크 모드와 같은 검정 바탕) */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #000000; --card: #1c1c1e; --text: #ffffff; --sub: #8d8d93; --line: #38383a;
+        --fill: rgba(118, 118, 128, 0.24);
+        --accent: #0a84ff; --accent-soft: rgba(10, 132, 255, 0.2); --on-accent: #ffffff;
+        --warn: #ff9f0a; --warn-soft: rgba(255, 159, 10, 0.18); --warn-text: #ffb340;
+        --danger: #ff453a; --danger-soft: rgba(255, 69, 58, 0.2);
+        --ok: #30d158; --ok-soft: rgba(48, 209, 88, 0.2); --muted-icon: #48484a;
+        --bar-bg: rgba(22, 22, 22, 0.92); --toast-bg: rgba(72, 72, 74, 0.95); --toast-text: #ffffff;
+        --overlay: rgba(0, 0, 0, 0.6); --seg-thumb: #636366; --dialog-bg: rgba(44, 44, 46, 0.97);
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #000000; --card: #1c1c1e; --text: #ffffff; --sub: #8d8d93; --line: #38383a;
+      --fill: rgba(118, 118, 128, 0.24);
+      --accent: #0a84ff; --accent-soft: rgba(10, 132, 255, 0.2); --on-accent: #ffffff;
+      --warn: #ff9f0a; --warn-soft: rgba(255, 159, 10, 0.18); --warn-text: #ffb340;
+      --danger: #ff453a; --danger-soft: rgba(255, 69, 58, 0.2);
+      --ok: #30d158; --ok-soft: rgba(48, 209, 88, 0.2); --muted-icon: #48484a;
+      --bar-bg: rgba(22, 22, 22, 0.92); --toast-bg: rgba(72, 72, 74, 0.95); --toast-text: #ffffff;
+      --overlay: rgba(0, 0, 0, 0.6); --seg-thumb: #636366; --dialog-bg: rgba(44, 44, 46, 0.97);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      letter-spacing: -0.2px;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button { font: inherit; letter-spacing: inherit; cursor: pointer; color: inherit; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    svg.icon { width: 1em; height: 1em; flex-shrink: 0; }
+
+    .app {
+      max-width: 520px;
+      margin: 0 auto;
+      padding-block: 12px 120px;
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+    }
+
+    /* ----- 큰 제목 (아이폰 Large Title) ----- */
+    .large-title {
+      margin: 8px 0 2px;
+      font-family: var(--font-display);
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .subtitle { color: var(--sub); font-size: 14px; }
+
+    /* ----- 둥근 카드 목록 (inset grouped) ----- */
+    .group-title {
+      margin: 26px 16px 7px;
+      font-size: 13px;
+      color: var(--sub);
+      text-transform: uppercase;
+    }
+    .group-foot {
+      margin: 7px 16px 0;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--sub);
+    }
+    .group {
+      background: var(--card);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 11px 16px;
+      width: 100%;
+      border: none;
+      background: none;
+      text-align: left;
+      font-size: 16px;
+    }
+    /* 구분선: 왼쪽은 들여쓰기, 오른쪽 끝까지 (아이폰 목록 방식) */
+    .cell + .cell::before {
+      content: "";
+      position: absolute;
+      top: 0; right: 0;
+      left: 16px;
+      border-top: 0.5px solid var(--line);
+    }
+    .cell .grow { flex: 1; min-width: 0; }
+    .cell .value { color: var(--sub); }
+    .cell.action { color: var(--accent); justify-content: flex-start; }
+    .cell.destructive { color: var(--danger); justify-content: center; }
+    .cell.center { justify-content: center; }
+    button.cell:active { background: var(--fill); }
+
+    /* ----- 버튼 ----- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: none;
+      border-radius: var(--radius);
+      padding: 13px 18px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .btn.primary   { background: var(--accent); color: var(--on-accent); }
+    .btn.secondary { background: var(--fill); color: var(--accent); }
+    .btn.danger    { background: var(--danger-soft); color: var(--danger); }
+    .btn.big       { width: 100%; padding: 15px; }
+    .btn:active    { opacity: 0.7; }
+    .text-btn {
+      border: none;
+      background: none;
+      color: var(--accent);
+      font-size: 16px;
+      padding: 8px 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ----- 세그먼트 컨트롤 (아이폰 [오늘|내일] 같은 선택 막대) ----- */
+    .seg {
+      display: flex;
+      padding: 2px;
+      border-radius: 14px;
+      background: var(--fill);
+      gap: 2px;
+    }
+    .seg button {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: none;
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .seg button.on {
+      background: var(--seg-thumb);
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04);
+      font-weight: 600;
+    }
+
+    /* ----- 스위치 (아이폰 토글) ----- */
+    .switch {
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      width: 51px;
+      height: 31px;
+      flex-shrink: 0;
+      margin: 0;
+      border-radius: 999px;
+      background: var(--fill);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 27px; height: 27px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 3px 1px rgba(0, 0, 0, 0.06);
+      transition: transform 0.2s;
+    }
+    .switch:checked { background: var(--ok); }
+    .switch:checked::after { transform: translateX(20px); }
+
+    /* ----- 입력칸 ----- */
+    .plain-input {
+      border: none;
+      background: none;
+      font: inherit;
+      font-size: 16px;
+      color: var(--text);
+      min-width: 0;
+    }
+    .plain-input::placeholder { color: var(--sub); }
+    .pill-input {
+      border: none;
+      border-radius: 14px;
+      background: var(--fill);
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 16px;
+      color: var(--text);
+    }
+    .date-input {
+      border: none;
+      border-radius: 14px;
+      background: var(--fill);
+      padding: 6px 10px;
+      font: inherit;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .date-input.on { color: var(--accent); background: var(--accent-soft); }
+
+    /* ----- 알람 켜기 안내 ----- */
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      margin-bottom: 4px;
+      padding: 12px 14px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--card);
+      text-align: left;
+    }
+    .banner .badge-icon { background: var(--warn); }
+    .banner .t1 { font-size: 14px; font-weight: 600; }
+    .banner .t2 { font-size: 13px; color: var(--sub); margin-top: 1px; }
+    .banner .chev { margin-left: auto; color: var(--muted-icon); font-size: 14px; }
+
+    /* 설정 앱처럼 색 네모 안에 흰 아이콘 */
+    .badge-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 29px; height: 29px;
+      flex-shrink: 0;
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 16px;
+    }
+
+    /* ----- 오늘 화면 머리말 ----- */
+    .day-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 4px;
+    }
+    .day-bar .seg { flex: 1; max-width: 180px; }
+    .day-bar .date-input { margin-left: auto; }
+    .summary { margin-top: 2px; font-size: 14px; color: var(--sub); }
+
+    /* ----- 진행 중 타이머 막대 ----- */
+    .timer-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--warn);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .timer-bar .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .timer-bar b { font-size: 16px; font-variant-numeric: tabular-nums; }
+
+    /* ----- 새 할일 입력 ----- */
+    .add-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 0;
+      padding: 6px 6px 6px 14px;
+      background: var(--card);
+      border-radius: var(--radius);
+    }
+    .add-box .plus { color: var(--accent); font-size: 22px; display: flex; }
+    .add-box input { flex: 1; padding: 8px 0; }
+    .add-box .btn { padding: 8px 14px; font-size: 14px; border-radius: 14px; }
+
+    /* ----- 할일 목록 (미리 알림 앱 느낌) ----- */
+    .task-list {
+      list-style: none;
+      margin: 14px 0 0;
+      padding: 0;
+      background: var(--card);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .task {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 10px 11px 16px;
+    }
+    /* 구분선: 동그라미 오른쪽부터 */
+    .task + .task::before {
+      content: "";
+      position: absolute;
+      top: 0; right: 0;
+      left: 50px;
+      border-top: 0.5px solid var(--line);
+    }
+    /* 동그란 체크 (미리 알림 앱 방식) */
+    .task input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      margin: 1px 0 0;
+      border: 1.5px solid var(--muted-icon);
+      border-radius: 50%;
+      cursor: pointer;
+      background: transparent center / 12px no-repeat;
+    }
+    .task input[type="checkbox"]:checked {
+      border-color: var(--accent);
+      background-color: var(--accent);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    .task .info { flex: 1; min-width: 0; cursor: pointer; }
+    .task .title { font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+    .task .meta {
+      margin-top: 3px;
+      font-size: 14px;
+      color: var(--sub);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px 8px;
+      align-items: center;
+    }
+    .task .meta .when { display: inline-flex; align-items: center; gap: 4px; }
+    .task .meta .link { color: var(--accent); }
+    .task.next .meta .when { color: var(--accent); font-weight: 500; }
+
+    .next-label {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--on-accent);
+      margin-right: 6px;
+      vertical-align: 2px;
+    }
+    .tag {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--fill);
+      color: var(--sub);
+    }
+    .tag.warn { background: var(--warn-soft); color: var(--warn-text); }
+    .tag.run  { background: var(--warn); color: #ffffff; }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: none;
+      font-size: 16px;
+    }
+    .icon-btn.play { background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+    .task.next .icon-btn.play { background: var(--accent); color: var(--on-accent); }
+    .icon-btn.del  { color: var(--muted-icon); }
+
+    /* 끝난 할일: 흐리게 */
+    .task.done .title { color: var(--sub); text-decoration: line-through; }
+
+    .empty {
+      text-align: center;
+      color: var(--sub);
+      padding: 48px 0 24px;
+      font-size: 14px;
+    }
+    .empty .big-icon { font-size: 44px; color: var(--muted-icon); display: block; margin: 0 auto 10px; }
+    .list-footer { text-align: center; margin-top: 6px; }
+    .list-footer .text-btn { font-size: 14px; }
+
+    /* ----- 아래 탭 막대 ----- */
+    .tabbar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      display: flex;
+      justify-content: center;
+      background: var(--bar-bg);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-top: 0.5px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      z-index: 10;
+    }
+    .tabbar button {
+      flex: 1;
+      max-width: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      border: none;
+      background: none;
+      padding: 7px 0 5px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1px;
+      color: var(--sub);
+    }
+    .tabbar button svg { width: 26px; height: 26px; }
+    .tabbar button.on { color: var(--accent); }
+
+    /* ----- 카드 안 글 ----- */
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; }
+    .card p { margin: 0 0 6px; font-size: 14px; color: var(--sub); line-height: 1.45; }
+    .card p:last-child { margin-bottom: 0; }
+
+    /* ----- 아래에서 올라오는 편집 창 (아이폰 시트) ----- */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 20;
+      animation: fade 0.2s ease;
+    }
+    .overlay.center { align-items: center; padding: 16px; }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+    @keyframes pop  { from { transform: scale(1.1); opacity: 0; } }
+
+    .sheet {
+      width: 100%;
+      max-width: 520px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: var(--bg);
+      border-radius: 28px 28px 0 0;
+      padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
+      animation: rise 0.25s ease;
+    }
+    .grabber {
+      width: 36px; height: 5px;
+      margin: 6px auto 0;
+      border-radius: 3px;
+      background: var(--muted-icon);
+    }
+    .sheet-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0 4px;
+    }
+    .sheet-nav h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .sheet-nav .text-btn { min-width: 60px; }
+    .sheet-nav .text-btn.strong { font-weight: 600; justify-content: flex-end; }
+    .sheet .group-title { margin-top: 22px; }
+
+    .sheet .title-input { width: 100%; padding: 2px 0; }
+    .unit { color: var(--sub); }
+    .custom-min { width: 64px; text-align: right; }
+    .warn-box {
+      margin: 14px 0 0;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: var(--warn-soft);
+      color: var(--warn-text);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    /* ----- 가운데 창 (아이폰 알림창) ----- */
+    .dialog {
+      width: 100%;
+      max-width: 340px;
+      background: var(--card);
+      border-radius: 28px;
+      padding: 24px 18px 18px;
+      text-align: center;
+      animation: pop 0.2s ease;
+    }
+    .dialog .alarm-icon {
+      width: 64px; height: 64px;
+      margin: 0 auto 10px;
+      border-radius: 50%;
+      background: var(--warn);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      animation: shake 0.6s infinite;
+    }
+    .dialog .alarm-time {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 300;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .dialog h2 { margin: 4px 0 4px; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+    .dialog p { margin: 0 0 18px; color: var(--sub); font-size: 14px; }
+    .dialog .row { display: flex; gap: 8px; margin-top: 8px; }
+    .dialog .row .btn { flex: 1; font-size: 14px; padding: 12px 8px; }
+    .reason-box { margin-bottom: 14px; }
+    .reason-box p { margin-bottom: 10px; color: var(--warn-text); }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .pills button {
+      border: none;
+      border-radius: 999px;
+      background: var(--fill);
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+    @keyframes shake {
+      0%, 100% { transform: rotate(0); }
+      25% { transform: rotate(-12deg); }
+      75% { transform: rotate(12deg); }
+    }
+
+    /* 확인 창: 아이폰 기본 알림창 모양 */
+    #confirm-overlay { z-index: 25; }
+    .alert {
+      width: 270px;
+      background: var(--dialog-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 24px;
+      overflow: hidden;
+      text-align: center;
+      animation: pop 0.2s ease;
+    }
+    .alert .alert-msg {
+      margin: 0;
+      padding: 19px 16px;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .alert .alert-buttons { display: flex; border-top: 0.5px solid var(--line); }
+    .alert .alert-buttons button {
+      flex: 1;
+      height: 44px;
+      border: none;
+      background: none;
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .alert .alert-buttons button + button { border-left: 0.5px solid var(--line); }
+    .alert .alert-buttons .destructive { color: var(--danger); font-weight: 600; }
+    .alert .alert-buttons button:active { background: var(--fill); }
+
+    /* ----- 타이머 화면 (시계 앱 타이머 느낌) ----- */
+    .timer-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 15;
+      overflow-y: auto;
+      animation: rise 0.25s ease;
+    }
+    .timer-inner {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: calc(8px + env(safe-area-inset-top, 0px)) 16px calc(40px + env(safe-area-inset-bottom, 0px));
+      text-align: center;
+    }
+    .timer-top { display: flex; justify-content: flex-start; }
+    .timer-task { font-size: 18px; font-weight: 600; margin: 8px 0 22px; overflow-wrap: anywhere; }
+    .ring { position: relative; width: min(290px, 80vw); aspect-ratio: 1; max-width: 100%; margin: 0 auto 28px; }
+    .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .ring circle { fill: none; stroke-width: 8; }
+    .ring .track { stroke: var(--fill); }
+    .ring .progress { stroke: var(--warn); stroke-linecap: round; transition: stroke-dashoffset 0.9s linear; }
+    .ring.finished .progress { stroke: var(--danger); }
+    .ring-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .ring-left {
+      font-family: var(--font-display);
+      font-size: clamp(52px, 17vw, 72px);
+      font-weight: 200;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+    }
+    .ring-end { color: var(--sub); font-size: 14px; margin-top: 2px; display: inline-flex; align-items: center; gap: 4px; }
+    .timer-actions { display: flex; flex-direction: column; gap: 12px; }
+    .finish-msg { font-size: 16px; font-weight: 600; margin: 0; }
+
+    /* 시계 앱의 동그란 버튼 */
+    .round-row { display: flex; justify-content: space-between; align-items: center; padding: 0 8px; }
+    .round-btn {
+      width: 84px; height: 84px;
+      border-radius: 50%;
+      border: none;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px currentColor;
+    }
+    .round-btn.gray   { background: var(--fill); color: var(--text); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--fill); }
+    .round-btn.orange { background: var(--warn-soft); color: var(--warn); }
+    .round-btn.green  { background: var(--ok-soft); color: var(--ok); }
+    .round-btn:active { opacity: 0.7; }
+
+    /* ----- 배경화면 미리보기 ----- */
+    .phone {
+      width: 270px;
+      max-width: 100%;
+      margin: 18px auto 20px;
+      padding: 9px;
+      border-radius: 46px;
+      background: #1c1c1e;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+    }
+    .phone-screen {
+      height: 540px;
+      border-radius: 38px;
+      overflow: hidden;
+      padding: 46px 14px 16px;
+      background: linear-gradient(160deg, #4a6fa5, #1d2a44 55%, #0b1020);
+      color: #ffffff;
+      text-align: center;
+    }
+    .wp-date  { font-size: 14px; font-weight: 600; opacity: 0.9; }
+    .wp-clock {
+      font-family: var(--font-display);
+      font-size: 76px;
+      font-weight: 600;
+      line-height: 1.05;
+      letter-spacing: -1px;
+      margin-bottom: 18px;
+    }
+    .widget {
+      text-align: left;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 22px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .w-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; font-size: 14px; }
+    .w-timer { background: rgba(255, 149, 0, 0.85); border-radius: 14px; padding: 4px 8px; margin-bottom: 6px; font-weight: 600; }
+    .w-list { list-style: none; margin: 0; padding: 0; }
+    .w-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+    .w-box {
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      font-size: 10px;
+      line-height: 13px;
+      text-align: center;
+    }
+    .w-item.done .w-box { background: #ffffff; color: #1d2a44; }
+    .w-item.done .w-title { text-decoration: line-through; opacity: 0.55; }
+    .w-item.next .w-title { font-weight: 700; }
+    .w-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .w-time { opacity: 0.8; font-variant-numeric: tabular-nums; }
+    .w-more, .w-empty { opacity: 0.7; padding-top: 4px; }
+
+    /* ----- 기록 화면 ----- */
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { background: var(--card); border-radius: var(--radius); padding: 12px 14px; }
+    .metric .label { font-size: 13px; font-weight: 600; color: var(--sub); }
+    .metric .value {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      margin: 2px 0 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric .target { font-size: 12px; color: var(--sub); }
+    .metric.ok .value { color: var(--ok); }
+    .metric.bad .value { color: var(--warn); }
+    .table-wrap { overflow-x: auto; }
+    .history { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .history th, .history td { padding: 10px 6px; text-align: center; }
+    .history th { color: var(--sub); font-weight: 500; font-size: 13px; }
+    .history td { border-top: 0.5px solid var(--line); }
+
+    /* ----- 설정 화면 ----- */
+    .sound-option .name { font-size: 16px; }
+    .sound-option .desc { font-size: 13px; color: var(--sub); margin-top: 1px; }
+    .sound-option .check { color: var(--accent); font-size: 18px; visibility: hidden; }
+    .sound-option.on .check { visibility: visible; }
+    .vol-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+    .vol-row .icon { color: var(--sub); }
+
+    /* ----- 잠깐 떴다 사라지는 안내 ----- */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%) translateY(16px);
+      background: var(--toast-bg);
+      color: var(--toast-text);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 11px 18px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.25s;
+      z-index: 30;
+      max-width: calc(100% - 32px);
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ----- 배경화면 이미지 미리보기 ----- */
+    .wp-preview {
+      width: 100%;
+      max-width: 340px;
+      max-height: 94vh;
+      overflow-y: auto;
+      background: var(--card);
+      border-radius: 28px;
+      padding: 16px;
+      text-align: center;
+      animation: pop 0.2s ease;
+    }
+    .wp-preview img {
+      display: block;
+      max-width: 100%;
+      max-height: 62vh;
+      margin: 0 auto;
+      border-radius: 20px;
+      -webkit-touch-callout: default;   /* 아이폰에서 꾹 누르면 저장 메뉴가 뜨게 */
+      user-select: auto;
+    }
+    .wp-preview p { margin: 12px 0; font-size: 14px; color: var(--sub); }
+    .wp-preview .row { display: flex; gap: 8px; }
+    .wp-preview .row .btn { flex: 1; font-size: 14px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+
+  <!-- 선 아이콘 모음: <svg class="icon"><use href="#i-이름"/></svg> 로 꺼내 쓴다 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="5" cy="6.5" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="17.5" r="1.6"/>
+        <path d="M9.5 6.5H20M9.5 12H20M9.5 17.5H20"/>
+      </symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="2.5" width="12" height="19" rx="2.8"/><path d="M10.5 18.5h3"/>
+      </symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/>
+      </symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>
+        <circle cx="12" cy="12" r="7"/>
+      </symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5"/>
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="12" r="10"/><path d="M12 7.5v9M7.5 12h9" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12.5l4.5 4.5L19 7.5"/>
+      </symbol>
+      <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 5l-7 7 7 7"/>
+      </symbol>
+      <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 5l7 7-7 7"/>
+      </symbol>
+      <symbol id="i-speaker-low" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>
+      </symbol>
+      <symbol id="i-speaker-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M3 9.5h3.5L11 5.5v13l-4.5-4H3z" fill="currentColor" stroke="none"/>
+        <path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11"/>
+      </symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+
+    <!-- 알람 켜기 안내: 브라우저는 한 번 눌러 줘야 소리를 낼 수 있다 -->
+    <button class="banner" id="enable-banner">
+      <span class="badge-icon"><svg class="icon"><use href="#i-bell"/></svg></span>
+      <span>
+        <div class="t1">알람 소리·알림 켜기</div>
+        <div class="t2">한 번 눌러야 정해진 시각에 소리가 나요</div>
+      </span>
+      <svg class="icon chev"><use href="#i-chev"/></svg>
+    </button>
+
+    <!-- ========== 탭 1: 할일 목록 ========== -->
+    <section id="tab-today">
+      <h1 class="large-title" id="day-title">오늘</h1>
+      <div class="subtitle" id="today-date"></div>
+
+      <div class="day-bar">
+        <div class="seg" id="day-switch">
+          <button data-v="0">오늘</button>
+          <button data-v="1">내일</button>
+        </div>
+        <input class="date-input" type="date" id="day-picker" aria-label="볼 날짜 고르기">
+      </div>
+      <div class="summary" id="summary"></div>
+
+      <!-- 진행 중인 타이머가 있을 때만 보인다. 누르면 타이머 화면 -->
+      <button class="timer-bar" id="timer-bar" hidden>
+        <svg class="icon"><use href="#i-clock"/></svg>
+        <span class="grow" id="bar-title"></span>
+        <b id="bar-left"></b>
+      </button>
+
+      <!-- 새 할일: form으로 감싸면 엔터 키로도 추가된다 -->
+      <form class="add-box" id="add-form">
+        <span class="plus"><svg class="icon"><use href="#i-plus"/></svg></span>
+        <input class="plain-input" type="text" id="add-input" placeholder="새로운 할일" autocomplete="off" maxlength="60">
+        <button type="submit" class="btn primary">추가</button>
+      </form>
+
+      <ul class="task-list" id="task-list"></ul>
+      <div class="empty" id="empty-msg">
+        <svg class="icon big-icon"><use href="#i-list"/></svg>
+        할일이 없어요<br>위에서 새로운 할일을 추가해 보세요
+      </div>
+      <div class="list-footer">
+        <button class="text-btn" id="clear-done" hidden>끝난 할일 모두 지우기</button>
+      </div>
+
+      <!-- 아이폰 캘린더로 보내기: 화면이 꺼져 있어도 캘린더 알림이 온다 -->
+      <button class="btn secondary big" id="cal-export" style="margin-top: 14px;">
+        <svg class="icon"><use href="#i-calendar"/></svg>캘린더로 보내기
+      </button>
+      <div class="group-foot">시각을 정한 할일을 아이폰 캘린더 일정으로 보내요. 앱을 닫아도 캘린더 알림이 와요.</div>
+    </section>
+
+    <!-- ========== 탭 2: 배경화면 ========== -->
+    <section id="tab-wallpaper" hidden>
+      <h1 class="large-title">배경화면</h1>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="wp-date" id="wp-date"></div>
+          <div class="wp-clock" id="wp-clock"></div>
+          <div class="widget" id="wp-widget"></div>
+        </div>
+      </div>
+      <button class="btn primary big" id="wp-save">배경화면 이미지 만들기</button>
+      <div class="group-title">배경화면으로 쓰는 법</div>
+      <div class="card">
+        <p>1. 위 버튼을 누르면 오늘 할일이 들어간 이미지가 떠요.</p>
+        <p>2. 이미지를 꾹 눌러 "사진 앱에 저장"을 골라요.</p>
+        <p>3. 사진 앱에서 그 이미지를 열고 공유 → "배경화면으로 사용"을 눌러요.</p>
+        <p>미리보기 속 할일은 눌러서 바로 체크할 수 있어요. 할일이 바뀌면 이미지를 다시 저장하세요.</p>
+      </div>
+    </section>
+
+    <!-- ========== 탭 3: 기록 ========== -->
+    <section id="tab-stats" hidden>
+      <h1 class="large-title">기록</h1>
+      <div class="group-title">오늘</div>
+      <div class="metrics" id="metrics-today"></div>
+      <div class="group-title">최근 2주</div>
+      <div class="metrics" id="metrics-2w"></div>
+      <div class="group-title">날짜별</div>
+      <div class="group table-wrap">
+        <table class="history">
+          <thead>
+            <tr><th>날짜</th><th>할일</th><th>완료</th><th>정시 시작</th><th>연기</th></tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== 탭 4: 설정 ========== -->
+    <section id="tab-settings" hidden>
+      <h1 class="large-title">설정</h1>
+
+      <div class="group-title">알림</div>
+      <div class="group">
+        <label class="cell">
+          <span class="badge-icon" style="background: var(--warn)"><svg class="icon"><use href="#i-clock"/></svg></span>
+          <span class="grow">5분 전 예고 알림</span>
+          <input type="checkbox" class="switch" id="set-prealert">
+        </label>
+      </div>
+
+      <div class="group-title">알람 소리</div>
+      <div class="group" id="sound-list"></div>
+      <div class="group" style="margin-top: 10px;">
+        <label class="cell vol-row">
+          <svg class="icon"><use href="#i-speaker-low"/></svg>
+          <input type="range" id="set-volume" min="0.1" max="1" step="0.1" aria-label="소리 크기">
+          <svg class="icon"><use href="#i-speaker-high"/></svg>
+        </label>
+      </div>
+      <div class="group-foot">소리를 누르면 미리 들려줘요.</div>
+
+      <div class="group-title">상태</div>
+      <div class="group">
+        <div class="cell"><span class="grow">소리 재생</span><span class="value" id="set-sound"></span></div>
+        <div class="cell"><span class="grow">브라우저 알림</span><span class="value" id="set-perm"></span></div>
+        <div class="cell"><span class="grow">화면 꺼짐 막기</span><span class="value" id="set-wake"></span></div>
+        <button class="cell action" id="set-enable">알람 켜기 / 권한 요청</button>
+        <button class="cell action" id="set-test">알람 소리 들어보기</button>
+      </div>
+      <div class="group-foot">웹앱은 화면이 꺼지거나 브라우저를 닫으면 알람이 안 울릴 수 있어요. 테스트할 때는 화면을 켜 두세요.</div>
+
+      <div class="group-title">백업</div>
+      <div class="group">
+        <button class="cell action" id="set-export">백업 파일 내보내기</button>
+        <button class="cell action" id="set-import">백업 파일 불러오기</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+      <div class="group-foot">할일은 이 브라우저와 Claude 계정에 저장돼요. 가끔 백업 파일로도 보관하세요.</div>
+
+      <div class="group" style="margin-top: 26px;">
+        <button class="cell destructive" id="set-reset">모든 데이터 지우기</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========== 아래 탭 막대 ========== -->
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="today" class="on"><svg><use href="#i-list"/></svg>할일</button>
+    <button data-tab="wallpaper"><svg><use href="#i-phone"/></svg>배경화면</button>
+    <button data-tab="stats"><svg><use href="#i-chart"/></svg>기록</button>
+    <button data-tab="settings"><svg><use href="#i-gear"/></svg>설정</button>
+  </nav>
+
+  <!-- ========== 할일 편집 창 (아래에서 올라오는 시트) ========== -->
+  <div class="overlay" id="edit-overlay" hidden>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <button class="text-btn" id="edit-cancel">취소</button>
+        <h2>세부사항</h2>
+        <button class="text-btn strong" id="edit-save">완료</button>
+      </div>
+
+      <div class="group" style="margin-top: 14px;">
+        <div class="cell">
+          <input class="plain-input title-input" id="edit-title" maxlength="60" placeholder="제목">
+        </div>
+      </div>
+
+      <div class="group-title">날짜와 시간</div>
+      <div class="group">
+        <div class="cell">
+          <span class="badge-icon" style="background: var(--danger)"><svg class="icon"><use href="#i-list"/></svg></span>
+          <span class="grow">날짜</span>
+          <div class="seg" id="edit-date" style="width: 120px;">
+            <button data-v="0">오늘</button>
+            <button data-v="1">내일</button>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="grow" style="padding-left: 41px;">다른 날</span>
+          <input class="date-input" type="date" id="edit-date-input" aria-label="날짜 고르기">
+        </div>
+        <div class="cell">
+          <span class="badge-icon" style="background: var(--accent)"><svg class="icon"><use href="#i-clock"/></svg></span>
+          <span class="grow">시각</span>
+          <input class="date-input" type="time" id="edit-time" aria-label="시작 시각">
+          <button class="text-btn" id="edit-time-clear" style="font-size: 14px;">지우기</button>
+        </div>
+        <label class="cell">
+          <span class="badge-icon" style="background: var(--warn)"><svg class="icon"><use href="#i-bell"/></svg></span>
+          <span class="grow">알람</span>
+          <input type="checkbox" class="switch" id="edit-alarm-switch">
+        </label>
+      </div>
+      <div class="group-foot">시작 시각에 알람이 울려요.</div>
+
+      <div class="group-title">소요 시간 (타이머)</div>
+      <div class="group">
+        <div class="cell">
+          <div class="seg grow" id="edit-dur">
+            <button data-v="15">15분</button>
+            <button data-v="30">30분</button>
+            <button data-v="45">45분</button>
+            <button data-v="60">60분</button>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="grow">직접 입력</span>
+          <input class="pill-input custom-min" type="number" id="edit-dur-custom" min="1" max="600" placeholder="0" inputmode="numeric">
+          <span class="unit">분</span>
+        </div>
+      </div>
+
+      <div class="warn-box" id="edit-warn" hidden></div>
+
+      <div class="group" style="margin-top: 26px;">
+        <button class="cell action center" id="edit-cal">이 할일만 캘린더로 보내기</button>
+      </div>
+
+      <div class="group" style="margin-top: 12px;">
+        <button class="cell destructive" id="edit-delete">할일 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 알람 창 ========== -->
+  <div class="overlay center" id="alarm-overlay" hidden>
+    <div class="dialog">
+      <div class="alarm-icon"><svg class="icon"><use href="#i-bell"/></svg></div>
+      <div class="alarm-time" id="alarm-time"></div>
+      <h2 id="alarm-title"></h2>
+      <p id="alarm-sub"></p>
+
+      <!-- 3번째 미루기부터 이유를 고르게 한다 -->
+      <div class="reason-box" id="alarm-reason" hidden>
+        <p>벌써 2번 미뤘어요. 이유를 골라 주세요.</p>
+        <div class="pills" id="reason-chips">
+          <button>피곤해요</button>
+          <button>다른 일을 하는 중</button>
+          <button>할일이 너무 커요</button>
+          <button>기타</button>
+        </div>
+      </div>
+
+      <button class="btn primary big" id="alarm-start"><svg class="icon"><use href="#i-play"/></svg>지금 시작</button>
+      <div class="row">
+        <button class="btn secondary" id="alarm-snooze">10분 뒤</button>
+        <button class="btn secondary" id="alarm-skip">오늘 건너뛰기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 타이머 화면 ========== -->
+  <div class="timer-screen" id="timer-screen" hidden>
+    <div class="timer-inner">
+      <div class="timer-top">
+        <button class="text-btn" id="timer-minimize"><svg class="icon"><use href="#i-back"/></svg>목록</button>
+      </div>
+      <div class="timer-task" id="timer-title"></div>
+
+      <div class="ring" id="timer-ring">
+        <svg viewBox="0 0 200 200">
+          <circle class="track" cx="100" cy="100" r="90"></circle>
+          <circle class="progress" id="timer-progress" cx="100" cy="100" r="90"
+                  stroke-dasharray="565.49" stroke-dashoffset="0"></circle>
+        </svg>
+        <div class="ring-text">
+          <div class="ring-left" id="timer-left">00:00</div>
+          <div class="ring-end" id="timer-end"></div>
+        </div>
+      </div>
+
+      <!-- 타이머가 도는 중 -->
+      <div class="timer-actions" id="timer-running">
+        <div class="round-row">
+          <button class="round-btn gray" id="timer-stop">중단</button>
+          <button class="round-btn orange" id="timer-pause">일시정지</button>
+        </div>
+        <button class="btn primary big" id="timer-done-early" style="margin-top: 18px;">
+          <svg class="icon"><use href="#i-check"/></svg>다 끝냈어요
+        </button>
+      </div>
+
+      <!-- 시간이 다 됐을 때 -->
+      <div class="timer-actions" id="timer-finished" hidden>
+        <p class="finish-msg">시간이 다 됐어요! 다 끝냈나요?</p>
+        <button class="btn primary big" id="timer-done"><svg class="icon"><use href="#i-check"/></svg>완료</button>
+        <div class="group">
+          <button class="cell action center" id="timer-extend">5분 연장</button>
+          <button class="cell action center" id="timer-postpone">다음으로 미루기</button>
+        </div>
+      </div>
+
+      <!-- 미루기: 다시 알릴 시각 고르기 -->
+      <div class="timer-actions" id="postpone-box" hidden>
+        <p class="finish-msg">언제 다시 할까요?</p>
+        <div class="group">
+          <div class="cell">
+            <span class="grow">다시 알릴 시각</span>
+            <input class="date-input" type="time" id="postpone-time">
+          </div>
+        </div>
+        <button class="btn primary big" id="postpone-ok">이 시각으로 미루기</button>
+        <button class="text-btn" id="postpone-cancel" style="align-self: center;">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 확인 창 (아이폰 기본 알림창 모양) ========== -->
+  <div class="overlay center" id="confirm-overlay" hidden>
+    <div class="alert">
+      <p class="alert-msg" id="confirm-msg"></p>
+      <div class="alert-buttons">
+        <button id="confirm-no">취소</button>
+        <button class="destructive" id="confirm-yes">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 배경화면 이미지 미리보기 (꾹 눌러 사진 앱에 저장) ========== -->
+  <div class="overlay center" id="wp-overlay" hidden>
+    <div class="wp-preview">
+      <img id="wp-img" alt="오늘 할일이 들어간 배경화면 이미지">
+      <p>이미지를 <b>꾹 눌러</b> "사진 앱에 저장"을 고르세요.</p>
+      <div class="row">
+        <button class="btn secondary" id="wp-file">파일로 저장</button>
+        <button class="btn primary" id="wp-close">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // =====================================================
+    // 1. 작은 도구 함수들
+    // =====================================================
+    const $ = (id) => document.getElementById(id);
+    const pad = (n) => String(n).padStart(2, "0");
+    const MIN = 60 * 1000;   // 1분 = 60,000밀리초
+
+    // 고유 id 만들기
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    // 사용자가 쓴 글자를 화면에 안전하게 넣기 (<, > 같은 기호가 코드로 해석되지 않게)
+    function esc(text) {
+      return String(text).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // 날짜 → "2026-10-27" 모양 글자
+    function toDateStr(d) {
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+    // 오늘(0), 내일(1), 어제(-1) ...
+    function dateStr(offset = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return toDateStr(d);
+    }
+    // "2026-10-27" → "2026년 10월 27일 화요일"
+    function formatDateKo(str) {
+      const [y, m, d] = str.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+    }
+    // 화면 제목: 어제 / 오늘 / 내일, 그 밖의 날은 "11월 3일" (다른 해면 "2027년 1월 5일")
+    function dayLabel(str) {
+      if (str === dateStr(-1)) return "어제";
+      if (str === dateStr(0)) return "오늘";
+      if (str === dateStr(1)) return "내일";
+      const [y, m, d] = str.split("-").map(Number);
+      return (y !== new Date().getFullYear() ? `${y}년 ` : "") + `${m}월 ${d}일`;
+    }
+    // 밀리초 시각 → "17:30"
+    function hhmm(ms) {
+      const d = new Date(ms);
+      return pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    // 남은 밀리초 → "29:59"
+    function mmss(ms) {
+      const sec = Math.max(0, Math.ceil(ms / 1000));
+      return pad(Math.floor(sec / 60)) + ":" + pad(sec % 60);
+    }
+    // "17:30" → 1050 (자정부터 몇 분째인지)
+    function timeToMin(t) {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    // 잠깐 떴다 사라지는 안내
+    let toastTimer = null;
+    function toast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+    }
+
+    // "정말 지울까요?" 확인 창. Claude 링크 안에서는 브라우저 기본 confirm()이 막혀 있어서 직접 만든다
+    // 사용법: if (await askConfirm("지울까요?", "지우기")) { ... }
+    let confirmResolve = null;
+    function askConfirm(message, yesLabel = "확인") {
+      $("confirm-msg").textContent = message;
+      $("confirm-yes").textContent = yesLabel;
+      $("confirm-overlay").hidden = false;
+      return new Promise((resolve) => { confirmResolve = resolve; });
+    }
+    function answerConfirm(answer) {
+      $("confirm-overlay").hidden = true;
+      if (confirmResolve) {
+        const resolve = confirmResolve;
+        confirmResolve = null;
+        resolve(answer);
+      }
+    }
+    $("confirm-yes").addEventListener("click", () => answerConfirm(true));
+    $("confirm-no").addEventListener("click", () => answerConfirm(false));
+
+    // 안내만 하는 창 (버튼 하나: 확인)
+    async function showInfo(message) {
+      $("confirm-no").hidden = true;
+      $("confirm-yes").classList.remove("destructive");
+      await askConfirm(message, "확인");
+      $("confirm-no").hidden = false;
+      $("confirm-yes").classList.add("destructive");
+    }
+
+    // =====================================================
+    // 2. 데이터와 저장 (브라우저 저장소 localStorage)
+    // =====================================================
+    const STORAGE_KEY = "todo-reminder-v1";
+
+    function defaultState() {
+      return {
+        tasks: [],          // 할일 목록 (PRD의 Task)
+        sessions: [],       // 끝난 타이머 기록 (PRD의 TimerSession)
+        settings: { preAlert: true, sound: "siren", volume: 0.8 },
+        activeTimer: null,  // 지금 돌고 있는 타이머
+      };
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          return { ...defaultState(), ...saved, settings: { ...defaultState().settings, ...saved.settings } };
+        }
+      } catch (e) { /* 저장소를 못 쓰면 빈 상태로 시작 */ }
+      return defaultState();
+    }
+
+    function save() {
+      state.savedAt = Date.now();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) { /* 저장 실패해도 화면은 계속 동작 */ }
+      saveToCloud();
+    }
+
+    // ----- Claude 링크에서 열었을 때: 내 Claude 계정에도 저장 -----
+    // 브라우저 저장소는 지워질 수 있어서, 계정 저장소에 한 벌 더 둔다.
+    // (내 컴퓨터에서 파일로 열면 window.claude가 없어서 이 부분은 그냥 건너뛴다)
+    let cloudDoc = null;
+    let cloudTimer = null;
+
+    async function initCloud() {
+      if (!window.claude || !window.claude.use) return;
+      try {
+        const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+        if (!db || !user) return;
+        const myId = await user.id();
+        if (!myId) return;
+        // data/users/<내 id>/... 는 나만 볼 수 있는 자리
+        const doc = db.doc("data/users/" + myId + "/todo-state");
+        const snap = await doc.get();
+        if (snap.exists && snap.data().json) {
+          const remote = JSON.parse(snap.data().json);
+          // 더 최근에 저장된 쪽을 쓴다
+          if ((remote.savedAt || 0) > (state.savedAt || 0)) {
+            state = { ...defaultState(), ...remote, settings: { ...defaultState().settings, ...remote.settings } };
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+            renderAll();
+          }
+        }
+        cloudDoc = doc;
+        if (!snap.exists || (state.savedAt || 0) > ((snap.data() || {}).savedAt || 0)) saveToCloud();
+      } catch (e) { /* 계정 저장을 못 쓰면 브라우저 저장소만 쓴다 */ }
+    }
+
+    // 빠르게 여러 번 바뀌면 0.8초 기다렸다가 한 번만 저장
+    function saveToCloud() {
+      if (!cloudDoc) return;
+      clearTimeout(cloudTimer);
+      cloudTimer = setTimeout(() => {
+        cloudDoc.set({ json: JSON.stringify(state), savedAt: state.savedAt || 0 }).catch(() => {});
+      }, 800);
+    }
+
+    let state = load();
+    let viewDate = dateStr(0);   // 목록 화면에서 보고 있는 날 ("2026-10-27" 모양)
+
+    // =====================================================
+    // 3. 할일 다루기
+    // =====================================================
+    function findTask(id) {
+      return state.tasks.find((t) => t.id === id);
+    }
+    function tasksOf(date) {
+      return state.tasks.filter((t) => t.date === date);
+    }
+    // 끝난 할일 = 완료 또는 건너뜀
+    function isClosed(t) {
+      return t.status === "완료" || t.status === "건너뜀";
+    }
+
+    // 정렬: 안 끝난 일이 위, 끝난 일이 아래. 그 안에서는 시각 순, 시각 미정은 뒤
+    function sortTasks(list) {
+      return [...list].sort((a, b) => {
+        if (isClosed(a) !== isClosed(b)) return isClosed(a) ? 1 : -1;
+        return (a.start_time || "99:99").localeCompare(b.start_time || "99:99");
+      });
+    }
+
+    // 시작 시각을 바탕으로 알람 시각 계산
+    function scheduleAlarm(task) {
+      task.alarm_at = (task.start_time && task.alarm_type === "알림")
+        ? new Date(`${task.date}T${task.start_time}:00`).getTime()
+        : null;
+      task.pre_alerted = false;
+      // 이미 지난 시각이면 울리지 않는다
+      task.alarm_fired = task.alarm_at !== null && task.alarm_at < Date.now();
+    }
+
+    function addTask(title) {
+      const task = {
+        id: uid(),
+        title: title,
+        date: viewDate,
+        start_time: null,       // 제목만 써도 저장 (시각은 나중에)
+        duration_min: 30,       // PRD 기본값 30분
+        repeat_rule: "없음",
+        alarm_type: "알림",
+        status: "대기",          // 대기 / 진행 중 / 완료 / 미룸 / 건너뜀
+        snooze_count: 0,
+        snooze_reasons: [],
+        completed_at: null,
+        alarm_at: null,         // 다음에 알람이 울릴 시각
+        alarm_fired: false,
+        pre_alerted: false,
+        first_rang_at: null,    // 처음 알람이 울린 시각 (정시 시작률 계산용)
+        started_on_time: null,  // 알람 후 10분 안에 시작했는지
+      };
+      state.tasks.push(task);
+      save();
+      renderAll();
+    }
+
+    function setDone(id, done) {
+      const task = findTask(id);
+      if (!task) return;
+      if (done) {
+        task.status = "완료";
+        task.completed_at = new Date().toISOString();
+        task.alarm_fired = true;
+        // 이 할일의 타이머가 돌고 있었으면 끝낸다
+        if (state.activeTimer && state.activeTimer.task_id === id) {
+          endSession(state.activeTimer.extended ? "연장" : "완료");
+          closeTimer();
+          toast("잘했어요! 완료 🎉");
+        }
+        if (alarmId === id) closeAlarm();
+      } else {
+        task.status = "대기";
+        task.completed_at = null;
+      }
+      save();
+      renderAll();
+    }
+
+    // 지우기: 정말 지울지 물어보고, 지웠으면 true
+    async function deleteTask(id) {
+      const task = findTask(id);
+      if (!task) return false;
+      if (!(await askConfirm(`"${task.title}"을(를) 지울까요?`, "지우기"))) return false;
+      if (state.activeTimer && state.activeTimer.task_id === id) {
+        state.activeTimer = null;
+        stopRinging();
+        closeTimer();
+      }
+      if (alarmId === id) closeAlarm();
+      state.tasks = state.tasks.filter((t) => t.id !== id);
+      save();
+      renderAll();
+      return true;
+    }
+
+    // 보고 있는 날의 끝난 할일(완료·건너뜀) 한꺼번에 지우기
+    async function clearClosed() {
+      const date = viewDate;
+      const closed = tasksOf(date).filter(isClosed);
+      if (closed.length === 0) return;
+      if (!(await askConfirm(`끝난 할일 ${closed.length}개를 지울까요?`, "지우기"))) return;
+      state.tasks = state.tasks.filter((t) => !(t.date === date && isClosed(t)));
+      save();
+      renderAll();
+    }
+
+    // 시간이 겹치는 할일 찾기 → 겹치는 할일 id 모음
+    function overlapIds(list) {
+      const ids = new Set();
+      const timed = list.filter((t) => t.start_time && !isClosed(t));
+      for (let i = 0; i < timed.length; i++) {
+        for (let j = i + 1; j < timed.length; j++) {
+          const a = timed[i], b = timed[j];
+          const aStart = timeToMin(a.start_time), aEnd = aStart + a.duration_min;
+          const bStart = timeToMin(b.start_time), bEnd = bStart + b.duration_min;
+          if (aStart < bEnd && bStart < aEnd) {
+            ids.add(a.id);
+            ids.add(b.id);
+          }
+        }
+      }
+      return ids;
+    }
+
+    // =====================================================
+    // 4. 오늘 화면 그리기
+    // =====================================================
+    function renderToday() {
+      const date = viewDate;
+      $("day-title").textContent = dayLabel(date);
+      $("today-date").textContent = formatDateKo(date);
+      let chipOn = false;
+      document.querySelectorAll("#day-switch button").forEach((b) => {
+        const on = dateStr(Number(b.dataset.v)) === date;
+        b.classList.toggle("on", on);
+        if (on) chipOn = true;
+      });
+      $("day-picker").value = date;
+      $("day-picker").classList.toggle("on", !chipOn);   // 오늘·내일이 아닌 날이면 달력 칸을 강조
+
+      const list = sortTasks(tasksOf(date));
+      const next = list.find((t) => !isClosed(t));
+      const overlaps = overlapIds(list);
+
+      $("task-list").innerHTML = list.map((t) => taskRow(t, t === next, overlaps.has(t.id))).join("");
+      $("task-list").hidden = list.length === 0;
+      $("empty-msg").hidden = list.length > 0;
+      $("clear-done").hidden = !list.some(isClosed);
+
+      const doneCount = list.filter((t) => t.status === "완료").length;
+      let text = `할일 ${list.length}개 중 ${doneCount}개 완료`;
+      if (next) text += ` · 다음: ${next.start_time || next.title}`;
+      $("summary").textContent = text;
+    }
+
+    function taskRow(t, isNext, isOverlap) {
+      const closed = isClosed(t);
+      const classes = ["task"];
+      if (closed) classes.push("done");
+      if (isNext) classes.push("next");
+
+      const clock = `<svg class="icon"><use href="#i-clock"/></svg>`;
+      const time = t.start_time
+        ? `<span class="when">${clock}${t.start_time}</span>`
+        : `<span class="when link">${clock}시각 정하기</span>`;
+
+      const tags = [];
+      if (t.status === "진행 중") tags.push(`<span class="tag run">진행 중</span>`);
+      if (t.status === "미룸") tags.push(`<span class="tag warn">미룸${t.snooze_count ? " " + t.snooze_count + "회" : ""}</span>`);
+      if (t.status === "건너뜀") tags.push(`<span class="tag">건너뜀</span>`);
+      if (isOverlap) tags.push(`<span class="tag warn">⚠ 시간 겹침</span>`);
+      if (t.start_time && t.alarm_type === "없음") tags.push(`<span class="tag">알람 끔</span>`);
+
+      return `
+        <li class="${classes.join(" ")}" data-id="${t.id}">
+          <input type="checkbox" data-action="check" ${t.status === "완료" ? "checked" : ""} aria-label="완료">
+          <div class="info" data-action="edit">
+            <div class="title">${isNext ? '<span class="next-label">다음</span>' : ""}${esc(t.title)}</div>
+            <div class="meta">${time}<span>${t.duration_min}분</span>${tags.join("")}</div>
+          </div>
+          ${closed ? "" : '<button class="icon-btn play" data-action="start" aria-label="타이머 시작"><svg class="icon"><use href="#i-play"/></svg></button>'}
+          <button class="icon-btn del" data-action="delete" aria-label="삭제"><svg class="icon"><use href="#i-trash"/></svg></button>
+        </li>`;
+    }
+
+    // 목록 안의 버튼들: 한 곳에서 처리
+    $("task-list").addEventListener("click", (event) => {
+      const row = event.target.closest(".task");
+      const actionEl = event.target.closest("[data-action]");
+      if (!row || !actionEl) return;
+      const id = row.dataset.id;
+      const action = actionEl.dataset.action;
+      if (action === "check")  setDone(id, event.target.checked);
+      if (action === "edit")   openEdit(id);
+      if (action === "start")  startTimer(id);
+      if (action === "delete") deleteTask(id);
+    });
+
+    $("add-form").addEventListener("submit", (event) => {
+      event.preventDefault();   // 페이지 새로고침 막기
+      const title = $("add-input").value.trim();
+      if (title === "") return;
+      addTask(title);
+      $("add-input").value = "";
+      toast("추가했어요. 할일을 눌러 시각을 정하세요");
+    });
+
+    $("day-switch").addEventListener("click", (event) => {
+      const b = event.target.closest("button");
+      if (!b) return;
+      viewDate = dateStr(Number(b.dataset.v));
+      renderToday();
+    });
+    // 달력에서 아무 날짜나 골라서 보기
+    $("day-picker").addEventListener("change", () => {
+      if (!$("day-picker").value) return;
+      viewDate = $("day-picker").value;
+      renderToday();
+    });
+
+    $("clear-done").addEventListener("click", clearClosed);
+
+    // =====================================================
+    // 5. 할일 편집 창
+    // =====================================================
+    let editingId = null;
+    let draft = null;   // 저장 전까지 고르는 중인 값
+
+    function openEdit(id) {
+      const t = findTask(id);
+      if (!t) return;
+      editingId = id;
+      draft = { date: t.date, duration: t.duration_min, alarm: t.alarm_type };
+      $("edit-title").value = t.title;
+      $("edit-time").value = t.start_time || "";
+      $("edit-dur-custom").value = [15, 30, 45, 60].includes(t.duration_min) ? "" : t.duration_min;
+      renderEditChips();
+      updateEditWarn();
+      $("edit-overlay").hidden = false;
+    }
+
+    function closeEdit() {
+      $("edit-overlay").hidden = true;
+      editingId = null;
+    }
+
+    function renderEditChips() {
+      let chipOn = false;
+      document.querySelectorAll("#edit-date button").forEach((b) => {
+        const on = dateStr(Number(b.dataset.v)) === draft.date;
+        b.classList.toggle("on", on);
+        if (on) chipOn = true;
+      });
+      $("edit-date-input").value = draft.date;
+      $("edit-date-input").classList.toggle("on", !chipOn);
+      document.querySelectorAll("#edit-dur button").forEach((b) =>
+        b.classList.toggle("on", Number(b.dataset.v) === draft.duration));
+      $("edit-alarm-switch").checked = draft.alarm === "알림";
+    }
+
+    // 시간 겹침, 지난 시각 경고
+    function updateEditWarn() {
+      const time = $("edit-time").value;
+      const messages = [];
+      if (time) {
+        const me = { id: editingId, start_time: time, duration_min: draft.duration, status: "대기" };
+        const others = tasksOf(draft.date).filter((t) => t.id !== editingId);
+        const overlaps = overlapIds([me, ...others]);
+        const names = others.filter((t) => overlaps.has(t.id)).map((t) => `"${t.title}"`);
+        if (names.length) messages.push(`⚠ ${names.join(", ")}와(과) 시간이 겹쳐요.`);
+        if (new Date(`${draft.date}T${time}:00`).getTime() < Date.now()) {
+          messages.push("⚠ 이미 지난 시각이라 알람이 울리지 않아요.");
+        }
+      }
+      $("edit-warn").hidden = messages.length === 0;
+      $("edit-warn").innerHTML = messages.map(esc).join("<br>");
+    }
+
+    $("edit-date").addEventListener("click", (event) => {
+      const b = event.target.closest("button");
+      if (!b) return;
+      draft.date = dateStr(Number(b.dataset.v));
+      renderEditChips();
+      updateEditWarn();
+    });
+    $("edit-date-input").addEventListener("change", () => {
+      if (!$("edit-date-input").value) return;
+      draft.date = $("edit-date-input").value;
+      renderEditChips();
+      updateEditWarn();
+    });
+    $("edit-dur").addEventListener("click", (event) => {
+      const b = event.target.closest("button");
+      if (!b) return;
+      draft.duration = Number(b.dataset.v);
+      $("edit-dur-custom").value = "";
+      renderEditChips();
+      updateEditWarn();
+    });
+    $("edit-dur-custom").addEventListener("input", () => {
+      const v = Math.round(Number($("edit-dur-custom").value));
+      if (v >= 1) draft.duration = Math.min(v, 600);
+      renderEditChips();
+      updateEditWarn();
+    });
+    $("edit-alarm-switch").addEventListener("change", () => {
+      draft.alarm = $("edit-alarm-switch").checked ? "알림" : "없음";
+    });
+    $("edit-time").addEventListener("input", updateEditWarn);
+    $("edit-time-clear").addEventListener("click", () => {
+      $("edit-time").value = "";
+      updateEditWarn();
+    });
+
+    // 편집 내용 저장. 저장한 할일을 돌려준다 (실패하면 null)
+    function saveEdit() {
+      const t = findTask(editingId);
+      const title = $("edit-title").value.trim();
+      if (!title) { toast("할일 이름을 써 주세요"); return null; }
+      const newTime = $("edit-time").value || null;
+
+      // 날짜·시각·알람이 바뀌었으면 알람을 다시 건다
+      const timingChanged = t.date !== draft.date || t.start_time !== newTime || t.alarm_type !== draft.alarm;
+
+      t.title = title;
+      t.date = draft.date;
+      t.start_time = newTime;
+      t.duration_min = draft.duration;
+      t.alarm_type = draft.alarm;
+      if (timingChanged) {
+        scheduleAlarm(t);
+        if (t.status === "미룸" || t.status === "건너뜀") t.status = "대기";
+      }
+      save();
+      closeEdit();
+      renderAll();
+      if (timingChanged && t.alarm_at && !t.alarm_fired) toast(`${t.start_time}에 알람이 울려요`);
+      return t;
+    }
+    $("edit-save").addEventListener("click", saveEdit);
+
+    // 이 할일만 캘린더로: 먼저 저장하고 보내기
+    $("edit-cal").addEventListener("click", () => {
+      const t = saveEdit();
+      if (t) exportCalendar([t], `할일-${t.title.slice(0, 20)}.ics`);
+    });
+
+    $("edit-cancel").addEventListener("click", closeEdit);
+    $("edit-delete").addEventListener("click", async () => {
+      if (await deleteTask(editingId)) closeEdit();
+    });
+    // 바깥 어두운 곳을 누르면 닫기
+    $("edit-overlay").addEventListener("click", (event) => {
+      if (event.target === $("edit-overlay")) closeEdit();
+    });
+
+    // =====================================================
+    // 6. 소리와 알림
+    // =====================================================
+    // 브라우저는 사용자가 한 번 화면을 눌러야 소리를 낼 수 있게 해 준다
+    let audioCtx = null;
+    function unlockAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    }
+    document.addEventListener("pointerdown", unlockAudio);
+
+    // 삐- 소리 (times번 반복)
+    function beep(times = 1, freq = 880) {
+      if (!audioCtx) return;
+      const start = audioCtx.currentTime;
+      for (let i = 0; i < times; i++) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const t = start + i * 0.3;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        osc.start(t);
+        osc.stop(t + 0.22);
+      }
+    }
+
+    // 진동 (안드로이드만 지원, 아이폰은 조용히 무시)
+    function buzz() {
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      beep(1, 700);
+    }
+
+    // ----- 알람음 종류 -----
+    // 소리 파일 없이 브라우저가 직접 소리를 만든다 (Web Audio)
+    // tone(시작 시각, 길이, 시작 높이 Hz, 파형, 크기, 끝 높이 Hz)
+    function tone(start, dur, freq, type, vol, freqEnd) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      if (freqEnd) osc.frequency.linearRampToValueAtTime(freqEnd, start + dur);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(vol, start + 0.01);
+      gain.gain.setValueAtTime(vol, start + dur - 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(start);
+      osc.stop(start + dur + 0.02);
+      // 중간에 끌 수 있게 기억해 둔다
+      playingOscs.push(osc);
+      osc.onended = () => { playingOscs = playingOscs.filter((o) => o !== osc); };
+    }
+
+    // 지금 나고 있는 알람음을 바로 끄기
+    let playingOscs = [];
+    function stopSound() {
+      for (const osc of playingOscs) {
+        try { osc.stop(); } catch (e) { /* 이미 끝난 소리 */ }
+      }
+      playingOscs = [];
+    }
+
+    // length: 한 번 울리는 길이(초). 알람이 울리는 동안 이 길이마다 반복한다
+    const SOUNDS = {
+      siren: {
+        name: "긴급 사이렌", desc: "높낮이가 오르내리는 경보음 (약 5초)", length: 4.8,
+        play(t, v) {
+          // 올라갔다 내려오기를 3번
+          for (let i = 0; i < 3; i++) {
+            tone(t + i * 1.6, 0.8, 650, "sawtooth", v * 0.35, 1500);
+            tone(t + i * 1.6 + 0.8, 0.8, 1500, "sawtooth", v * 0.35, 650);
+          }
+        },
+      },
+      rapid: {
+        name: "빠른 경고음", desc: "삐삐삐삐 쉬지 않고 빠르게 (약 4초)", length: 4.0,
+        play(t, v) {
+          for (let i = 0; i < 30; i++) tone(t + i * 0.13, 0.08, 1300, "square", v * 0.3);
+        },
+      },
+      digital: {
+        name: "디지털 시계", desc: "자명종 같은 삑삑삑삑 (약 5초)", length: 4.6,
+        play(t, v) {
+          // 삑삑삑삑 + 잠깐 쉼, 4번
+          for (let g = 0; g < 4; g++) {
+            for (let i = 0; i < 4; i++) tone(t + g * 1.15 + i * 0.18, 0.1, 2000, "square", v * 0.25);
+          }
+        },
+      },
+      bell: {
+        name: "부드러운 벨", desc: "띵동, 덜 급한 소리 (약 5초)", length: 5.4,
+        play(t, v) {
+          for (let i = 0; i < 3; i++) {
+            tone(t + i * 1.8, 0.7, 880, "sine", v * 0.6);
+            tone(t + i * 1.8 + 0.5, 1.0, 660, "sine", v * 0.6);
+          }
+        },
+      },
+    };
+
+    // 고른 알람음을 한 번 울리기 (이미 나고 있던 소리는 끄고)
+    function playAlarmSound(key) {
+      if (!audioCtx) return;
+      stopSound();
+      const sound = SOUNDS[key || state.settings.sound] || SOUNDS.siren;
+      sound.play(audioCtx.currentTime + 0.02, state.settings.volume || 0.8);
+    }
+
+    // 알람이 울리는 동안 계속 반복
+    let ringInterval = null;
+    function startRinging() {
+      stopRinging();
+      const sound = SOUNDS[state.settings.sound] || SOUNDS.siren;
+      playAlarmSound();
+      buzz();
+      ringInterval = setInterval(() => playAlarmSound(), (sound.length + 0.15) * 1000);
+    }
+    function stopRinging() {
+      clearInterval(ringInterval);
+      ringInterval = null;
+      stopSound();   // 버튼을 누르면 소리가 바로 멈추게
+    }
+
+    // 브라우저 알림 (권한을 허용했을 때만)
+    function notify(title, body) {
+      try {
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(title, { body });
+        }
+      } catch (e) { /* 일부 브라우저는 여기서 알림을 못 띄운다 */ }
+    }
+
+    // 화면 꺼짐 막기 (알람을 놓치지 않게). 지원 안 하는 브라우저는 그냥 넘어간다
+    let wakeLock = null;
+    let alarmsEnabled = false;
+    async function keepScreenOn() {
+      try {
+        if (navigator.wakeLock && !wakeLock) {
+          wakeLock = await navigator.wakeLock.request("screen");
+          wakeLock.addEventListener("release", () => { wakeLock = null; renderSettings(); });
+        }
+      } catch (e) { wakeLock = null; }
+      renderSettings();
+    }
+
+    function enableAlarms() {
+      unlockAudio();
+      beep(1);
+      alarmsEnabled = true;
+      keepScreenOn();
+      $("enable-banner").hidden = true;
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().then(renderSettings);
+      }
+      toast("알람이 켜졌어요. 화면을 켜 둔 채로 쓰세요");
+      renderSettings();
+    }
+    $("enable-banner").addEventListener("click", enableAlarms);
+
+    // =====================================================
+    // 7. 알람: 1초마다 "울릴 할일이 있나?" 확인
+    // =====================================================
+    let alarmQueue = [];   // 동시에 여러 개 울리면 차례로 보여주기
+    let alarmId = null;    // 지금 알람 창에 떠 있는 할일
+
+    function checkAlarms(now) {
+      let changed = false;
+      for (const t of state.tasks) {
+        if (!t.alarm_at || t.alarm_fired || isClosed(t) || t.status === "진행 중") continue;
+
+        // 30분 넘게 지난 알람은 놓친 것으로 치고 울리지 않는다
+        if (now - t.alarm_at > 30 * MIN) {
+          t.alarm_fired = true;
+          changed = true;
+          continue;
+        }
+        // 5분 전 예고
+        if (state.settings.preAlert && !t.pre_alerted && now >= t.alarm_at - 5 * MIN && now < t.alarm_at) {
+          t.pre_alerted = true;
+          changed = true;
+          toast(`5분 뒤 시작: ${t.title}`);
+          beep(2, 660);
+          notify("5분 뒤 시작", t.title);
+        }
+        // 정시 알람
+        if (now >= t.alarm_at) {
+          t.alarm_fired = true;
+          t.pre_alerted = true;
+          if (!t.first_rang_at) t.first_rang_at = now;
+          changed = true;
+          queueAlarm(t.id);
+        }
+      }
+      if (changed) {
+        save();
+        renderAll();
+      }
+    }
+
+    function queueAlarm(id) {
+      if (alarmId !== id && !alarmQueue.includes(id)) alarmQueue.push(id);
+      showNextAlarm();
+    }
+
+    function showNextAlarm() {
+      if (alarmId) return;
+      const id = alarmQueue.shift();
+      if (!id) return;
+      const t = findTask(id);
+      if (!t || isClosed(t)) return showNextAlarm();
+
+      alarmId = id;
+      $("alarm-time").textContent = hhmm(Date.now());
+      $("alarm-title").textContent = t.title;
+      $("alarm-sub").textContent = `${t.duration_min}분 타이머가 시작돼요` +
+        (t.snooze_count ? ` · 미룬 횟수 ${t.snooze_count}회` : "");
+      $("alarm-snooze").textContent = t.snooze_count >= 2 ? "10분 뒤 (이유)" : `10분 뒤 (${2 - t.snooze_count}회)`;
+      $("alarm-reason").hidden = true;
+      $("alarm-overlay").hidden = false;
+      startRinging();
+      notify(`⏰ ${t.title}`, `지금 시작할 시간이에요 (${t.duration_min}분)`);
+    }
+
+    function closeAlarm() {
+      stopRinging();
+      $("alarm-overlay").hidden = true;
+      alarmId = null;
+      setTimeout(showNextAlarm, 300);
+    }
+
+    $("alarm-start").addEventListener("click", () => {
+      const id = alarmId;
+      closeAlarm();
+      startTimer(id);
+    });
+
+    $("alarm-snooze").addEventListener("click", () => {
+      const t = findTask(alarmId);
+      // 2번 미뤘으면 3번째부터는 이유를 고르게 한다
+      if (t.snooze_count >= 2 && $("alarm-reason").hidden) {
+        $("alarm-reason").hidden = false;
+        return;
+      }
+      if (t.snooze_count < 2) snooze(null);
+    });
+
+    $("reason-chips").addEventListener("click", (event) => {
+      const b = event.target.closest("button");
+      if (b) snooze(b.textContent);
+    });
+
+    function snooze(reason) {
+      const t = findTask(alarmId);
+      t.snooze_count++;
+      if (reason) t.snooze_reasons.push(reason);
+      t.status = "미룸";
+      t.alarm_at = Date.now() + 10 * MIN;
+      t.alarm_fired = false;
+      t.pre_alerted = true;   // 미룬 알람은 예고 없이 정시에만
+      save();
+      closeAlarm();
+      renderAll();
+      toast(`10분 뒤(${hhmm(t.alarm_at)})에 다시 알려 드릴게요`);
+    }
+
+    $("alarm-skip").addEventListener("click", () => {
+      const t = findTask(alarmId);
+      t.status = "건너뜀";
+      save();
+      closeAlarm();
+      renderAll();
+    });
+
+    // =====================================================
+    // 8. 타이머
+    // 남은 시간은 "예정 종료 시각 - 지금"으로 계산한다.
+    // 그래서 새로고침하거나 잠깐 다른 앱에 갔다 와도 정확하다.
+    // =====================================================
+    const RING_LENGTH = 565.49;   // 원 둘레 = 2 × 3.14 × 90
+
+    async function startTimer(id) {
+      const t = findTask(id);
+      if (!t || isClosed(t)) return;
+      const at = state.activeTimer;
+      if (at && at.task_id === id) { openTimer(); return; }
+      if (at) {
+        if (!(await askConfirm("진행 중인 타이머를 중단하고 이 할일을 시작할까요?", "시작"))) return;
+        const old = findTask(at.task_id);
+        if (old) old.status = "대기";
+        endSession("중단");
+      }
+
+      const now = Date.now();
+      // 정시 시작 기록: 알람(또는 예정 시각) 후 10분 안에 시작했나?
+      const base = t.first_rang_at || t.alarm_at;
+      if (base && t.started_on_time === null) t.started_on_time = now <= base + 10 * MIN;
+      t.alarm_fired = true;   // 미리 시작했으면 알람은 안 울린다
+      t.status = "진행 중";
+
+      state.activeTimer = {
+        session_id: uid(),
+        task_id: id,
+        started_at: now,
+        planned_end_at: now + t.duration_min * MIN,
+        total_ms: t.duration_min * MIN,
+        paused_at: null,
+        paused_sec: 0,
+        extended: false,
+        half_buzzed: false,
+        five_buzzed: false,
+        finished: false,
+      };
+      save();
+      openTimer();
+      renderAll();
+    }
+
+    // 타이머를 끝내고 기록(TimerSession)에 남기기
+    function endSession(result) {
+      const at = state.activeTimer;
+      if (!at) return;
+      state.sessions.push({
+        id: at.session_id,
+        task_id: at.task_id,
+        started_at: new Date(at.started_at).toISOString(),
+        planned_end_at: new Date(at.planned_end_at).toISOString(),
+        paused_sec: at.paused_sec,
+        result: result,          // 완료 / 연장 / 미룸 / 중단
+        extended: at.extended,
+        ended_at: new Date().toISOString(),
+      });
+      state.activeTimer = null;
+      stopRinging();
+    }
+
+    function openTimer() {
+      $("timer-screen").hidden = false;
+      $("postpone-box").hidden = true;
+      updateTimer(Date.now());
+    }
+    function closeTimer() {
+      $("timer-screen").hidden = true;
+    }
+
+    function updateTimer(now) {
+      const at = state.activeTimer;
+      if (!at) {
+        $("timer-bar").hidden = true;
+        return;
+      }
+      const t = findTask(at.task_id);
+      if (!t) { state.activeTimer = null; save(); return; }
+
+      const left = at.planned_end_at - (at.paused_at || now);
+
+      if (!at.paused_at && !at.finished) {
+        // 절반 지점, 5분 남았을 때 짧게 알려주기
+        if (!at.half_buzzed && left <= at.total_ms / 2) {
+          at.half_buzzed = true;
+          buzz();
+          toast("절반 지났어요");
+          save();
+        }
+        if (!at.five_buzzed && at.total_ms > 5 * MIN && left <= 5 * MIN) {
+          at.five_buzzed = true;
+          buzz();
+          toast("5분 남았어요");
+          save();
+        }
+        // 시간 끝
+        if (left <= 0) {
+          at.finished = true;
+          save();
+          startRinging();
+          notify("⏱ 시간이 다 됐어요", t.title);
+          openTimer();
+        }
+      }
+
+      // 화면 그리기
+      $("timer-title").textContent = t.title;
+      $("timer-left").textContent = mmss(left);
+      $("timer-end").textContent = at.finished ? "시간 종료"
+        : at.paused_at ? "일시정지됨"
+        : `${hhmm(at.planned_end_at)} 종료`;
+      const ratio = Math.min(1, Math.max(0, left / at.total_ms));
+      $("timer-progress").setAttribute("stroke-dashoffset", RING_LENGTH * (1 - ratio));
+      $("timer-ring").classList.toggle("finished", at.finished);
+      // 시계 앱처럼: 도는 중엔 주황 "일시정지", 멈추면 초록 "재개"
+      $("timer-pause").textContent = at.paused_at ? "재개" : "일시정지";
+      $("timer-pause").className = "round-btn " + (at.paused_at ? "green" : "orange");
+
+      const postponing = !$("postpone-box").hidden;
+      $("timer-running").hidden = at.finished || postponing;
+      $("timer-finished").hidden = !at.finished || postponing;
+
+      // 오늘 화면 위쪽 막대
+      $("timer-bar").hidden = false;
+      $("bar-title").textContent = t.title;
+      $("bar-left").textContent = at.finished ? "종료" : mmss(left);
+    }
+
+    $("timer-pause").addEventListener("click", () => {
+      const at = state.activeTimer;
+      if (at.paused_at) {
+        const pausedMs = Date.now() - at.paused_at;
+        at.planned_end_at += pausedMs;   // 멈춘 만큼 종료 시각을 뒤로
+        at.paused_sec += Math.round(pausedMs / 1000);
+        at.paused_at = null;
+      } else {
+        at.paused_at = Date.now();
+      }
+      save();
+      updateTimer(Date.now());
+    });
+
+    $("timer-stop").addEventListener("click", async () => {
+      if (!(await askConfirm("타이머를 중단할까요? 할일은 그대로 남아요.", "중단"))) return;
+      if (!state.activeTimer) return;
+      const t = findTask(state.activeTimer.task_id);
+      t.status = "대기";
+      endSession("중단");
+      save();
+      closeTimer();
+      renderAll();
+    });
+
+    $("timer-done").addEventListener("click", () => setDone(state.activeTimer.task_id, true));
+    $("timer-done-early").addEventListener("click", () => setDone(state.activeTimer.task_id, true));
+
+    $("timer-extend").addEventListener("click", () => {
+      const at = state.activeTimer;
+      at.planned_end_at = Date.now() + 5 * MIN;
+      at.total_ms = 5 * MIN;
+      at.extended = true;
+      at.finished = false;
+      at.half_buzzed = true;
+      at.five_buzzed = true;
+      stopRinging();
+      save();
+      updateTimer(Date.now());
+    });
+
+    $("timer-postpone").addEventListener("click", () => {
+      stopRinging();
+      // 기본값: 30분 뒤 (5분 단위로 맞춤)
+      const later = new Date(Date.now() + 30 * MIN);
+      later.setMinutes(Math.ceil(later.getMinutes() / 5) * 5);
+      $("postpone-time").value = hhmm(later.getTime());
+      $("postpone-box").hidden = false;
+      updateTimer(Date.now());
+    });
+
+    $("postpone-cancel").addEventListener("click", () => {
+      $("postpone-box").hidden = true;
+      updateTimer(Date.now());
+    });
+
+    $("postpone-ok").addEventListener("click", () => {
+      const time = $("postpone-time").value;
+      if (!time) return;
+      const t = findTask(state.activeTimer.task_id);
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      t.date = timeToMin(time) > nowMin ? dateStr(0) : dateStr(1);   // 이미 지난 시각이면 내일
+      t.start_time = time;
+      t.status = "미룸";
+      scheduleAlarm(t);
+      endSession("미룸");
+      save();
+      closeTimer();
+      renderAll();
+      toast(`${t.date === dateStr(0) ? "오늘" : "내일"} ${time}에 다시 알려 드릴게요`);
+    });
+
+    $("timer-minimize").addEventListener("click", closeTimer);
+    $("timer-bar").addEventListener("click", openTimer);
+
+    // =====================================================
+    // 9. 배경화면 미리보기 + 이미지 저장
+    // =====================================================
+    function renderWallpaper() {
+      const list = sortTasks(tasksOf(dateStr(0)));
+      const next = list.find((t) => !isClosed(t));
+      const done = list.filter((t) => t.status === "완료").length;
+      const shown = list.slice(0, 7);   // 최대 7개, 넘치면 "+N개 더"
+
+      let html = `<div class="w-head"><span>오늘 할일</span><span>${done}/${list.length}</span></div>`;
+      const at = state.activeTimer;
+      const timerTask = at && findTask(at.task_id);
+      if (timerTask) {
+        html += `<div class="w-timer">⏱ ${esc(timerTask.title)} · <span id="w-timer-left"></span></div>`;
+      }
+      if (list.length === 0) html += `<div class="w-empty">할일이 없어요</div>`;
+      html += `<ul class="w-list">` + shown.map((t) => `
+        <li class="w-item ${isClosed(t) ? "done" : ""} ${t === next ? "next" : ""}" data-id="${t.id}">
+          <span class="w-box">${t.status === "완료" ? "✓" : ""}</span>
+          <span class="w-title">${esc(t.title)}</span>
+          <span class="w-time">${t.start_time || ""}</span>
+        </li>`).join("") + `</ul>`;
+      if (list.length > shown.length) html += `<div class="w-more">+${list.length - shown.length}개 더</div>`;
+      $("wp-widget").innerHTML = html;
+      updateClock();
+    }
+
+    function updateClock() {
+      const now = new Date();
+      $("wp-clock").textContent = hhmm(now.getTime());
+      $("wp-date").textContent = now.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
+      const at = state.activeTimer;
+      const el = document.getElementById("w-timer-left");
+      if (el && at) el.textContent = at.finished ? "종료" : mmss(at.planned_end_at - (at.paused_at || now.getTime()));
+    }
+
+    // 미리보기 속 할일을 눌러 체크
+    $("wp-widget").addEventListener("click", (event) => {
+      const item = event.target.closest(".w-item");
+      if (!item) return;
+      const t = findTask(item.dataset.id);
+      setDone(t.id, t.status !== "완료");
+    });
+
+    // 모서리가 둥근 사각형 그리기
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function saveWallpaper() {
+      // 아이폰 화면 크기(1179 × 2556)로 그림을 그린다
+      const W = 1179, H = 2556;
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      const font = (weight, size) => `${weight} ${size}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+
+      // 배경
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#3b4f7a");
+      g.addColorStop(1, "#111827");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+
+      const list = sortTasks(tasksOf(dateStr(0)));
+      const next = list.find((t) => !isClosed(t));
+      const items = list.slice(0, 7);
+      const more = list.length - items.length;
+      const done = list.filter((t) => t.status === "완료").length;
+
+      // 반투명 카드 (잠금 화면 시계 아래쯤)
+      const x = 90, cardW = W - 180, top = 1000, rowH = 120;
+      const cardH = 200 + Math.max(items.length, 1) * rowH + (more > 0 ? 90 : 0);
+      ctx.fillStyle = "rgba(255,255,255,0.16)";
+      roundRect(ctx, x, top, cardW, cardH, 60);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = font(700, 60);
+      ctx.fillText("오늘 할일", x + 60, top + 110);
+      ctx.font = font(500, 52);
+      ctx.textAlign = "right";
+      ctx.fillText(`${done}/${list.length}`, x + cardW - 60, top + 110);
+      ctx.textAlign = "left";
+
+      if (items.length === 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.font = font(400, 50);
+        ctx.fillText("할일이 없어요", x + 60, top + 240);
+      }
+
+      items.forEach((t, i) => {
+        const y = top + 240 + i * rowH;
+        const closed = isClosed(t);
+
+        // 체크 상자
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 5;
+        roundRect(ctx, x + 60, y - 46, 56, 56, 14);
+        if (t.status === "완료") {
+          ctx.fillStyle = "rgba(255,255,255,0.9)";
+          ctx.fill();
+        }
+        ctx.stroke();
+
+        // 제목 (길면 … 으로 줄이기)
+        ctx.font = font(t === next ? 700 : 500, 54);
+        ctx.fillStyle = closed ? "rgba(255,255,255,0.5)" : t === next ? "#bfd0ff" : "#ffffff";
+        let title = t.title;
+        const maxW = cardW - 420;
+        if (ctx.measureText(title).width > maxW) {
+          while (title.length > 1 && ctx.measureText(title + "…").width > maxW) title = title.slice(0, -1);
+          title += "…";
+        }
+        ctx.fillText(title, x + 150, y);
+        if (closed) ctx.fillRect(x + 150, y - 18, ctx.measureText(title).width, 4);
+
+        // 시각
+        if (t.start_time) {
+          ctx.font = font(500, 48);
+          ctx.textAlign = "right";
+          ctx.fillText(t.start_time, x + cardW - 60, y);
+          ctx.textAlign = "left";
+        }
+      });
+
+      if (more > 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.font = font(500, 46);
+        ctx.fillText(`+${more}개 더`, x + 60, top + 240 + items.length * rowH);
+      }
+
+      // 미리보기 창에 띄우기: 이미지를 꾹 눌러 사진 앱에 바로 저장할 수 있다
+      wallpaperCanvas = canvas;
+      $("wp-img").src = canvas.toDataURL("image/png");
+      $("wp-overlay").hidden = false;
+    }
+    let wallpaperCanvas = null;
+    $("wp-save").addEventListener("click", saveWallpaper);
+    $("wp-close").addEventListener("click", () => { $("wp-overlay").hidden = true; });
+    // 꾹 누르기가 안 될 때를 위한 예비: 파일로 저장
+    $("wp-file").addEventListener("click", () => {
+      wallpaperCanvas.toBlob(async (blob) => {
+        if (await downloadBlob(blob, `할일-배경화면-${dateStr(0)}.png`)) toast("이미지를 저장했어요");
+      });
+    });
+
+    // 파일 내려받기. Claude 링크 안에서는 Claude가 주는 저장 기능을 쓴다
+    let downloadsCap = null;
+    if (window.claude && window.claude.use) {
+      claude.use("downloads").then((d) => { downloadsCap = d; }).catch(() => {});
+    }
+    async function downloadBlob(blob, filename) {
+      if (window.claude && window.claude.use) {
+        if (!downloadsCap) { toast("지금은 파일을 저장할 수 없어요"); return false; }
+        try {
+          lastDownloadError = null;
+          await downloadsCap.save({ filename, data: blob });
+          return true;
+        } catch (e) {
+          lastDownloadError = e && e.code;   // "declined" = 저장 창에서 취소, "rejected_extension" = 허용 안 되는 파일 종류
+          return false;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return true;
+    }
+    let lastDownloadError = null;
+
+    // =====================================================
+    // 9-2. 아이폰 캘린더로 보내기 (.ics 캘린더 파일 만들기)
+    // 캘린더 일정에 알림을 넣어 두면, 앱을 닫거나 화면이 꺼져도 아이폰이 알려 준다
+    // =====================================================
+    const ARTIFACT_URL = "https://claude.ai/artifact/AnBERPvysXdqKZ4JrtB1AW";
+    function inClaude() { return !!(window.claude && window.claude.use); }
+    // 일정 안에 넣을 "앱 열기" 주소
+    function appUrl() { return inClaude() ? ARTIFACT_URL : location.href.split("#")[0]; }
+
+    // 캘린더 파일 규칙에 맞게 글자 바꾸기
+    function icsEscape(s) {
+      return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+    }
+    // 밀리초 → "20261103T080000Z" (세계 표준시)
+    function icsDate(ms) {
+      return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    }
+    // 캘린더 파일은 한 줄이 75바이트를 넘으면 접어야 한다 (한글은 한 글자 3바이트)
+    function icsFold(line) {
+      const enc = new TextEncoder();
+      let out = "", cur = "", bytes = 0;
+      for (const ch of line) {
+        const b = enc.encode(ch).length;
+        if (bytes + b > 73) { out += cur + "\r\n "; cur = ""; bytes = 1; }
+        cur += ch;
+        bytes += b;
+      }
+      return out + cur;
+    }
+
+    function buildIcs(list) {
+      const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//todo-reminder//KO", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+      const stamp = icsDate(Date.now());
+      for (const t of list) {
+        const start = new Date(`${t.date}T${t.start_time}:00`).getTime();
+        const end = start + t.duration_min * MIN;
+        lines.push(
+          "BEGIN:VEVENT",
+          `UID:${t.id}@todo-reminder`,   // 같은 할일은 같은 id → 다시 보내면 덮어쓰기
+          `DTSTAMP:${stamp}`,
+          `DTSTART:${icsDate(start)}`,
+          `DTEND:${icsDate(end)}`,
+          `SUMMARY:${icsEscape(t.title)}`,
+          `DESCRIPTION:${icsEscape(`소요 시간 ${t.duration_min}분\n앱 열기: ${appUrl()}`)}`,
+          `URL:${appUrl()}`,
+          // 정각 알림
+          "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape(t.title)}`, "TRIGGER:PT0S", "END:VALARM"
+        );
+        // 5분 전 예고 (설정에서 켜 둔 경우)
+        if (state.settings.preAlert) {
+          lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${icsEscape("5분 뒤 시작: " + t.title)}`, "TRIGGER:-PT5M", "END:VALARM");
+        }
+        lines.push("END:VEVENT");
+      }
+      lines.push("END:VCALENDAR");
+      return lines.map(icsFold).join("\r\n") + "\r\n";
+    }
+
+    async function exportCalendar(tasks, filename) {
+      const list = tasks.filter((t) => t.start_time && !isClosed(t));
+      if (list.length === 0) {
+        toast("시각을 정한 할일이 없어요. 할일을 눌러 시각을 먼저 정하세요");
+        return;
+      }
+      const blob = new Blob([buildIcs(list)], { type: "text/calendar;charset=utf-8" });
+      const safeName = filename.replace(/[\\/:*?"<>|]/g, "");
+      if (await downloadBlob(blob, safeName)) {
+        toast(`할일 ${list.length}개를 캘린더 파일로 저장했어요`);
+      } else if (lastDownloadError === "rejected_extension" || lastDownloadError === "extension_not_enabled") {
+        await showInfo("Claude 링크 안에서는 캘린더 파일을 저장할 수 없어요. 앱을 일반 웹 주소로 열면 이 버튼으로 바로 캘린더에 추가돼요.");
+      }
+    }
+
+    $("cal-export").addEventListener("click", () => exportCalendar(tasksOf(viewDate), `할일-${viewDate}.ics`));
+
+    // =====================================================
+    // 10. 기록 (PRD 성공 지표)
+    // =====================================================
+    function statsFor(dates) {
+      const list = state.tasks.filter((t) => dates.includes(t.date));
+      const done = list.filter((t) => t.status === "완료").length;
+
+      // 정시 시작률: 알람이 울렸거나 시작한 할일 중, 10분 안에 시작한 비율
+      const alarmed = list.filter((t) => t.first_rang_at || t.started_on_time !== null);
+      const onTime = alarmed.filter((t) => t.started_on_time === true).length;
+
+      // 평균 연기 횟수: 시각을 정한 할일 1개당 "10분 뒤" 횟수
+      const timed = list.filter((t) => t.start_time);
+      const snoozes = timed.reduce((sum, t) => sum + (t.snooze_count || 0), 0);
+
+      // 타이머 내 완료율: 완료로 끝난 타이머 중 연장 없이 끝낸 비율
+      const finished = state.sessions.filter((s) =>
+        dates.includes(toDateStr(new Date(s.started_at))) && (s.result === "완료" || s.result === "연장"));
+      const inTime = finished.filter((s) => s.result === "완료").length;
+
+      return {
+        total: list.length,
+        done,
+        completion: list.length ? done / list.length : null,
+        onTime: alarmed.length ? onTime / alarmed.length : null,
+        onTimeText: `${onTime}/${alarmed.length}`,
+        snoozeAvg: timed.length ? snoozes / timed.length : null,
+        snoozes,
+        inTime: finished.length ? inTime / finished.length : null,
+      };
+    }
+
+    const pct = (v) => (v === null ? "–" : Math.round(v * 100) + "%");
+
+    // 지표 카드 하나 (목표를 넘으면 초록, 못 넘으면 주황)
+    function metricCard(label, value, display, target, goodWhen) {
+      const cls = value === null ? "" : goodWhen(value) ? "ok" : "bad";
+      return `<div class="metric ${cls}">
+        <div class="label">${label}</div>
+        <div class="value">${display}</div>
+        <div class="target">목표 ${target}</div>
+      </div>`;
+    }
+
+    function metricsHtml(s) {
+      return [
+        metricCard("정시 시작률", s.onTime, pct(s.onTime), "60% 이상", (v) => v >= 0.6),
+        metricCard("할일 완료율", s.completion, pct(s.completion), "70% 이상", (v) => v >= 0.7),
+        metricCard("평균 연기 횟수", s.snoozeAvg, s.snoozeAvg === null ? "–" : s.snoozeAvg.toFixed(1) + "회", "0.5회 이하", (v) => v <= 0.5),
+        metricCard("타이머 내 완료율", s.inTime, pct(s.inTime), "50% 이상", (v) => v >= 0.5),
+      ].join("");
+    }
+
+    function renderStats() {
+      const last14 = [];
+      for (let i = 0; i > -14; i--) last14.push(dateStr(i));
+
+      $("metrics-today").innerHTML = metricsHtml(statsFor([dateStr(0)]));
+
+      const usedDays = last14.filter((d) => tasksOf(d).length > 0).length;
+      $("metrics-2w").innerHTML = metricsHtml(statsFor(last14)) +
+        metricCard("사용한 날", usedDays, `${usedDays}/14일`, "12일 이상", (v) => v >= 12);
+
+      $("history-body").innerHTML = last14.map((d) => {
+        const s = statsFor([d]);
+        if (s.total === 0) return "";
+        const [, m, day] = d.split("-");
+        return `<tr><td>${Number(m)}/${Number(day)}</td><td>${s.total}</td><td>${pct(s.completion)}</td><td>${s.onTimeText}</td><td>${s.snoozes}회</td></tr>`;
+      }).join("") || `<tr><td colspan="5">아직 기록이 없어요</td></tr>`;
+    }
+
+    // =====================================================
+    // 11. 설정
+    // =====================================================
+    function renderSettings() {
+      $("set-prealert").checked = state.settings.preAlert;
+      $("set-volume").value = state.settings.volume || 0.8;
+      // 설정 앱 "사운드" 목록처럼: 고른 소리 오른쪽에 파란 체크
+      $("sound-list").innerHTML = Object.entries(SOUNDS).map(([key, s]) => `
+        <button class="cell sound-option ${key === state.settings.sound ? "on" : ""}" data-sound="${key}">
+          <span class="grow"><div class="name">${s.name}</div><div class="desc">${s.desc}</div></span>
+          <svg class="icon check"><use href="#i-check"/></svg>
+        </button>`).join("");
+      $("set-sound").textContent = audioCtx && audioCtx.state === "running" ? "켜짐" : "꺼짐";
+      const perm = "Notification" in window ? Notification.permission : "unsupported";
+      $("set-perm").textContent = { granted: "허용", denied: "거부됨", default: "아직 안 물어봄", unsupported: "지원 안 함" }[perm];
+      $("set-wake").textContent = wakeLock ? "켜짐" : "꺼짐";
+    }
+
+    $("set-prealert").addEventListener("change", () => {
+      state.settings.preAlert = $("set-prealert").checked;
+      save();
+    });
+    // 알람음 고르기: 누르면 그 소리로 바꾸고 한 번 들려준다
+    $("sound-list").addEventListener("click", (event) => {
+      const b = event.target.closest(".sound-option");
+      if (!b) return;
+      unlockAudio();
+      state.settings.sound = b.dataset.sound;
+      save();
+      playAlarmSound();
+      renderSettings();
+    });
+    $("set-volume").addEventListener("change", () => {
+      state.settings.volume = Number($("set-volume").value);
+      save();
+      unlockAudio();
+      playAlarmSound();   // 바꾼 크기로 들려주기
+    });
+    $("set-enable").addEventListener("click", enableAlarms);
+    $("set-test").addEventListener("click", () => {
+      unlockAudio();
+      playAlarmSound();
+      setTimeout(renderSettings, 300);
+    });
+
+    $("set-export").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      downloadBlob(blob, `할일-백업-${dateStr(0)}.json`);
+    });
+    $("set-import").addEventListener("click", () => $("import-file").click());
+    $("import-file").addEventListener("change", async () => {
+      const file = $("import-file").files[0];
+      $("import-file").value = "";
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (!Array.isArray(data.tasks)) throw new Error("형식이 달라요");
+        if (!(await askConfirm(`할일 ${data.tasks.length}개가 든 백업이에요. 지금 데이터를 이걸로 바꿀까요?`, "바꾸기"))) return;
+        state = { ...defaultState(), ...data };
+        save();
+        renderAll();
+        toast("백업을 불러왔어요");
+      } catch (e) {
+        toast("백업 파일을 읽지 못했어요. 이 앱에서 내보낸 .json 파일인지 확인하세요");
+      }
+    });
+    $("set-reset").addEventListener("click", async () => {
+      if (!(await askConfirm("할일과 기록을 모두 지울까요? 되돌릴 수 없어요.", "모두 지우기"))) return;
+      state = defaultState();
+      save();
+      closeTimer();
+      renderAll();
+      toast("모두 지웠어요");
+    });
+
+    // =====================================================
+    // 12. 탭 바꾸기, 전체 그리기, 시작
+    // =====================================================
+    $("tabbar").addEventListener("click", (event) => {
+      const b = event.target.closest("button");
+      if (!b) return;
+      for (const name of ["today", "wallpaper", "stats", "settings"]) {
+        $("tab-" + name).hidden = name !== b.dataset.tab;
+      }
+      document.querySelectorAll("#tabbar button").forEach((x) => x.classList.toggle("on", x === b));
+      window.scrollTo(0, 0);
+      renderAll();
+    });
+
+    function renderAll() {
+      renderToday();
+      renderWallpaper();
+      renderStats();
+      renderSettings();
+      updateTimer(Date.now());
+    }
+
+    function tick() {
+      const now = Date.now();
+      checkAlarms(now);
+      updateTimer(now);
+      updateClock();
+    }
+
+    renderAll();
+    tick();
+    setInterval(tick, 1000);
+    // 다른 앱에 갔다가 돌아오면 바로 확인
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        tick();
+        if (alarmsEnabled) keepScreenOn();
+      }
+    });
+    initCloud();
+  </script>
+
+</body>
+</html>
