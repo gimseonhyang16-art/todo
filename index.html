@@ -609,6 +609,8 @@
       font-weight: 600;
       line-height: 1.35;
       overflow-wrap: anywhere;
+      white-space: pre-line;   /* 줄바꿈 그대로 보이게 */
+      user-select: text;
     }
     .alert .alert-buttons { display: flex; border-top: 0.5px solid var(--line); }
     .alert .alert-buttons button {
@@ -927,6 +929,12 @@
         <svg class="icon"><use href="#i-calendar"/></svg>캘린더로 보내기
       </button>
       <div class="group-foot">시각을 정한 할일을 아이폰 캘린더 일정으로 보내요. 앱을 닫아도 캘린더 알림이 와요.</div>
+
+      <!-- 아이폰 시계 알람으로: 단축어 "할일 알람 맞추기"와 함께 쓴다 -->
+      <button class="btn secondary big" id="alarm-copy" style="margin-top: 12px;">
+        <svg class="icon"><use href="#i-bell"/></svg>아이폰 알람으로 복사
+      </button>
+      <div class="group-foot">오늘 남은 할일 시각을 복사해요. 복사한 뒤 단축어 "할일 알람 맞추기"를 실행하면 시계 앱 알람이 생겨요.</div>
     </section>
 
     <!-- ========== 탭 2: 배경화면 ========== -->
@@ -2474,6 +2482,34 @@
     }
 
     $("cal-export").addEventListener("click", () => exportCalendar(tasksOf(viewDate), `할일-${viewDate}.ics`));
+
+    // =====================================================
+    // 9-3. 아이폰 시계 알람으로 보내기 (단축어 앱과 함께 쓰기)
+    // "17:00|할일 이름" 을 한 줄씩 복사 → 단축어가 읽어서 시계 앱 알람을 만든다
+    // 시계 알람은 시각만 기억하므로, 오늘 아직 안 지난 할일만 보낸다
+    // =====================================================
+    function alarmLines() {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      return sortTasks(tasksOf(dateStr(0)))
+        .filter((t) => t.start_time && !isClosed(t) && timeToMin(t.start_time) > nowMin)
+        .map((t) => `${t.start_time}|${t.title.replace(/[|\r\n]/g, " ")}`);
+    }
+
+    $("alarm-copy").addEventListener("click", async () => {
+      const lines = alarmLines();
+      if (lines.length === 0) {
+        toast("오늘 남은 할일 중 시각을 정한 게 없어요");
+        return;
+      }
+      const text = lines.join("\n");
+      try {
+        await navigator.clipboard.writeText(text);   // 버튼을 누른 순간에만 복사가 허락된다
+        toast(`할일 ${lines.length}개를 복사했어요. 이제 단축어를 실행하세요`);
+      } catch (e) {
+        await showInfo("자동 복사가 안 돼요. 아래 글자를 꾹 눌러 직접 복사하세요.\n\n" + text);
+      }
+    });
 
     // =====================================================
     // 10. 기록 (PRD 성공 지표)
