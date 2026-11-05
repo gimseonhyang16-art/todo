@@ -8,7 +8,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="할일">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f2f2f7">
+<!-- 앱 정보와 아이콘 (안드로이드 APK, 홈 화면 아이콘에 쓰인다) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>할일 리마인더</title>
+<script>
+  // 오프라인에서도 열리게 서비스 워커 등록
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
 </head>
 <body>
 
@@ -1008,6 +1019,13 @@
         <button class="cell action" id="set-test">알람 소리 들어보기</button>
       </div>
       <div class="group-foot">웹앱은 화면이 꺼지거나 브라우저를 닫으면 알람이 안 울릴 수 있어요. 테스트할 때는 화면을 켜 두세요.</div>
+
+      <div class="group-title">전시</div>
+      <div class="group">
+        <button class="cell action" id="demo-fill">예시 할일 채우기</button>
+        <button class="cell destructive" id="demo-clear">예시 할일 지우기</button>
+      </div>
+      <div class="group-foot">관람객에게 보여 줄 예시 할일과 지난 기록을 채워요. 첫 번째 예시는 약 2분 뒤에 알람이 울려요. 지우기를 누르면 예시만 지워지고 내가 넣은 할일은 그대로 남아요.</div>
 
       <div class="group-title">백업</div>
       <div class="group">
@@ -2648,6 +2666,108 @@
         toast("백업 파일을 읽지 못했어요. 이 앱에서 내보낸 .json 파일인지 확인하세요");
       }
     });
+    // =====================================================
+    // 11-2. 전시용 예시 할일
+    // 예시에는 demo: true 표시를 붙여 두고, 지울 때는 그 표시가 있는 것만 지운다
+    // =====================================================
+    function demoTask(title, date, time, duration, extra = {}) {
+      const t = {
+        id: uid(), title, date, start_time: time, duration_min: duration,
+        repeat_rule: "없음", alarm_type: "알림", status: "대기",
+        snooze_count: 0, snooze_reasons: [], completed_at: null,
+        alarm_at: null, alarm_fired: false, pre_alerted: false,
+        first_rang_at: null, started_on_time: null, demo: true,
+      };
+      scheduleAlarm(t);
+      return Object.assign(t, extra);
+    }
+
+    function removeDemo() {
+      const demoIds = new Set(state.tasks.filter((t) => t.demo).map((t) => t.id));
+      if (state.activeTimer && demoIds.has(state.activeTimer.task_id)) {
+        state.activeTimer = null;
+        stopRinging();
+        closeTimer();
+      }
+      if (alarmId && demoIds.has(alarmId)) closeAlarm();
+      alarmQueue = alarmQueue.filter((id) => !demoIds.has(id));
+      state.tasks = state.tasks.filter((t) => !t.demo);
+      state.sessions = state.sessions.filter((s) => !s.demo);
+    }
+
+    function fillDemo() {
+      removeDemo();
+      const now = Date.now();
+      const at = (min) => hhmm(now + min * MIN);   // 지금부터 min분 뒤 시각
+      const today = dateStr(0);
+
+      // 오늘: 알람 시연용 + 앞으로 할 일 + 끝낸 일 + 미룬 일
+      state.tasks.push(
+        demoTask("영어 단어 30개 외우기 (알람 시연)", today, at(2), 1),
+        demoTask("수학 문제집 2장 풀기", today, at(40), 45),
+        demoTask("수행평가 발표 자료 만들기", today, at(100), 60),
+        demoTask("가방 챙기기", today, at(-120), 15,
+          { status: "완료", completed_at: new Date(now - 110 * MIN).toISOString(), alarm_fired: true, first_rang_at: now - 120 * MIN, started_on_time: true }),
+        // 아까 미뤄서 나중 시각으로 옮겨 둔 할일
+        demoTask("독서 감상문 쓰기", today, at(70), 30,
+          { status: "미룸", snooze_count: 2, snooze_reasons: ["피곤해요"], first_rang_at: now - 50 * MIN })
+      );
+
+      // 지난 6일: 기록 탭에 숫자가 보이도록
+      const plans = [
+        ["영어 단어 외우기", "19:00", 15],
+        ["수학 숙제", "20:00", 45],
+        ["방 정리", "21:00", 20],
+        ["내일 준비물 챙기기", "21:30", 10],
+      ];
+      for (let day = 1; day <= 6; day++) {
+        const date = dateStr(-day);
+        plans.forEach(([title, time, dur], j) => {
+          const start = new Date(`${date}T${time}:00`).getTime();
+          const pattern = (day + j) % 5;           // 날마다 결과를 조금씩 다르게
+          const done = pattern !== 0;
+          const onTime = pattern !== 0 && pattern !== 3;
+          const t = demoTask(title, date, time, dur, {
+            status: done ? "완료" : "건너뜀",
+            completed_at: done ? new Date(start + dur * MIN).toISOString() : null,
+            alarm_fired: true,
+            first_rang_at: start,
+            started_on_time: done ? onTime : false,
+            snooze_count: pattern === 3 ? 1 : 0,
+          });
+          state.tasks.push(t);
+          if (done) {
+            const extended = pattern === 4;
+            state.sessions.push({
+              id: uid(), task_id: t.id,
+              started_at: new Date(start + (onTime ? 2 : 15) * MIN).toISOString(),
+              planned_end_at: new Date(start + dur * MIN).toISOString(),
+              paused_sec: 0, result: extended ? "연장" : "완료", extended,
+              ended_at: new Date(start + (dur + (extended ? 5 : 0)) * MIN).toISOString(),
+              demo: true,
+            });
+          }
+        });
+      }
+      save();
+      viewDate = today;
+      renderAll();
+      toast("예시 할일을 채웠어요. 약 2분 뒤 첫 알람이 울려요");
+    }
+
+    $("demo-fill").addEventListener("click", () => {
+      unlockAudio();   // 시연 알람 소리가 나도록
+      fillDemo();
+    });
+    $("demo-clear").addEventListener("click", async () => {
+      if (!state.tasks.some((t) => t.demo)) { toast("지울 예시 할일이 없어요"); return; }
+      if (!(await askConfirm("예시 할일과 예시 기록을 지울까요? 내가 넣은 할일은 그대로 남아요.", "지우기"))) return;
+      removeDemo();
+      save();
+      renderAll();
+      toast("예시를 지웠어요");
+    });
+
     $("set-reset").addEventListener("click", async () => {
       if (!(await askConfirm("할일과 기록을 모두 지울까요? 되돌릴 수 없어요.", "모두 지우기"))) return;
       state = defaultState();
